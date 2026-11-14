@@ -1,0 +1,77 @@
+{
+	"name": "df_silver_diagnoses",
+	"properties": {
+		"folder": {
+			"name": "silver"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "dw_bronze_diagnoses_sql",
+						"type": "DatasetReference"
+					},
+					"name": "bronze"
+				},
+				{
+					"dataset": {
+						"referenceName": "dw_silver_admissions_sql",
+						"type": "DatasetReference"
+					},
+					"name": "admisionesSilver"
+				}
+			],
+			"sinks": [],
+			"transformations": [
+				{
+					"name": "limpiarTextos"
+				},
+				{
+					"name": "formatearIcd"
+				},
+				{
+					"name": "existeAdmision"
+				},
+				{
+					"name": "soloValidos"
+				}
+			],
+			"scriptLines": [
+				"source(output(",
+				"          diagnosis_id as string,",
+				"          admission_id as string,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> bronze",
+				"source(output(",
+				"          admission_id as integer,",
+				"          patient_id as integer,",
+				"          admission_date as date,",
+				"          discharge_date as date,",
+				"          department as string,",
+				"          attending_doctor_id as integer",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     format: 'table') ~> admisionesSilver",
+				"bronze derive(diagnosis_id = toInteger(trim(diagnosis_id)),",
+				"          admission_id = toInteger(trim(admission_id)),",
+				"          codigoIcd = upper(replace(trim(split(icd_code, ',')[1]), '-', '.')),",
+				"          diagnosis_description = trim(diagnosis_description),",
+				"          severity = iif(trim(coalesce(severity, '')) == '', toString(null()), initCap(lower(trim(severity))))) ~> limpiarTextos",
+				"limpiarTextos derive(icd_code = iif(instr(codigoIcd, '.') == 0 && length(codigoIcd) > 3, concat(left(codigoIcd, 3), '.', substring(codigoIcd, 4, length(codigoIcd) - 3)), codigoIcd)) ~> formatearIcd",
+				"formatearIcd, admisionesSilver exists(limpiarTextos@admission_id == admisionesSilver@admission_id,",
+				"     negate:false,",
+				"     broadcast: 'auto')~> existeAdmision",
+				"existeAdmision filter(!isNull(diagnosis_id) && !isNull(icd_code) && icd_code != '') ~> soloValidos"
+			]
+		}
+	}
+}
