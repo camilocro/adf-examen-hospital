@@ -22,7 +22,15 @@
 					"name": "admisionesSilver"
 				}
 			],
-			"sinks": [],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_diagnoses_sql",
+						"type": "DatasetReference"
+					},
+					"name": "silverDiagnoses"
+				}
+			],
 			"transformations": [
 				{
 					"name": "limpiarTextos"
@@ -70,7 +78,31 @@
 				"formatearIcd, admisionesSilver exists(limpiarTextos@admission_id == admisionesSilver@admission_id,",
 				"     negate:false,",
 				"     broadcast: 'auto')~> existeAdmision",
-				"existeAdmision filter(!isNull(diagnosis_id) && !isNull(icd_code) && icd_code != '') ~> soloValidos"
+				"existeAdmision filter(!isNull(diagnosis_id) && !isNull(icd_code) && icd_code != '') ~> soloValidos",
+				"soloValidos sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnosis_id as integer,",
+				"          admission_id as integer,",
+				"          icd_code as string,",
+				"          diagnosis_description as string,",
+				"          severity as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          diagnosis_id,",
+				"          admission_id,",
+				"          icd_code,",
+				"          diagnosis_description,",
+				"          severity",
+				"     )) ~> silverDiagnoses"
 			]
 		}
 	}
