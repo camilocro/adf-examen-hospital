@@ -1,0 +1,63 @@
+{
+	"name": "df_gold_dim_diagnostico",
+	"properties": {
+		"folder": {
+			"name": "gold"
+		},
+		"type": "MappingDataFlow",
+		"typeProperties": {
+			"sources": [
+				{
+					"dataset": {
+						"referenceName": "dw_silver_diagnoses_sql",
+						"type": "DatasetReference"
+					},
+					"name": "diagnosticos"
+				}
+			],
+			"sinks": [
+				{
+					"dataset": {
+						"referenceName": "dw_gold_dim_diagnostico_sql",
+						"type": "DatasetReference"
+					},
+					"name": "goldDimDiagnostico"
+				}
+			],
+			"transformations": [],
+			"scriptLines": [
+				"source(output(",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     isolationLevel: 'READ_UNCOMMITTED',",
+				"     query: 'SELECT DISTINCT icd_code AS codigo_icd,\\n       CASE icd_code\\n           WHEN \\'C50.911\\'  THEN \\'Neoplasia maligna de mama\\'\\n           WHEN \\'E11.9\\'    THEN \\'Diabetes mellitus tipo 2 sin complicaciones\\'\\n           WHEN \\'F32.9\\'    THEN \\'Episodio depresivo mayor\\'\\n           WHEN \\'I10\\'      THEN \\'Hipertensión esencial\\'\\n           WHEN \\'J45.909\\'  THEN \\'Asma sin complicaciones\\'\\n           WHEN \\'K21.9\\'    THEN \\'Reflujo gastroesofágico\\'\\n           WHEN \\'M54.5\\'    THEN \\'Dolor lumbar\\'\\n           WHEN \\'N39.0\\'    THEN \\'Infección de vías urinarias\\'\\n           WHEN \\'R51\\'      THEN \\'Cefalea\\'\\n           WHEN \\'S72.001A\\' THEN \\'Fractura del cuello del fémur\\'\\n       END AS descripcion_patologia,\\n       COALESCE(severity, \\'No especificada\\') AS nivel_severidad\\nFROM silver.diagnoses\\nUNION ALL\\nSELECT \\'SIN-DX\\', \\'Admisión sin diagnóstico registrado\\', \\'No especificada\\'',",
+				"     format: 'query') ~> diagnosticos",
+				"diagnosticos sink(allowSchemaDrift: true,",
+				"     validateSchema: false,",
+				"     input(",
+				"          diagnostico_key as integer,",
+				"          codigo_icd as string,",
+				"          descripcion_patologia as string,",
+				"          nivel_severidad as string",
+				"     ),",
+				"     deletable:false,",
+				"     insertable:true,",
+				"     updateable:false,",
+				"     upsertable:false,",
+				"     format: 'table',",
+				"     skipDuplicateMapInputs: true,",
+				"     skipDuplicateMapOutputs: true,",
+				"     errorHandlingOption: 'stopOnFirstError',",
+				"     mapColumn(",
+				"          codigo_icd,",
+				"          descripcion_patologia,",
+				"          nivel_severidad",
+				"     )) ~> goldDimDiagnostico"
+			]
+		}
+	}
+}
